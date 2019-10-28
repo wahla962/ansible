@@ -1,0 +1,166 @@
+---
+- name: Install and start a dns server
+  hosts: try2
+  vars:
+#wherever the full hostname is mentioned this will be added
+   h1: ansible2.vm8.com
+#wherever the abbreviated hostname is mentioned this will be added
+   ah: ansible2
+#the following line is for who you will allow query service and port listening
+   d1: 
+     p1: any
+     q1: any
+#if you would like to forward dns querys to google
+   a2: 
+     a: forwarders { 8.8.8.8; };
+#if you would like to set forwarding first or only have forwarding
+     b1: forwarders only;
+     b2: forwarders first;
+#name of your zone file
+   z1: ansible2.com.fwd
+   z2: ansible2.com.rev
+  tasks:
+   - name: named package is present 
+     yum:
+        name: 
+        - bind
+        - bind-utils
+        state: present
+
+#task 11
+   - name: reset name
+     lineinfile:
+       path: /etc/sysconfig/network-scripts/ifcfg-eth0
+       regexp: '^HOSTNAME'
+       line: 'HOSTNAME={{ h1 }}'
+       backup: yes
+#tasks 4
+   - name: reset named.conf file
+     shell:
+       echo "">/etc/named.conf
+#tasks 5
+   - name: config named.conf
+     blockinfile:
+       dest: /etc/named.conf
+       block: |
+        options {
+                listen-on port 53 { "{{ d1[p1] }}"; };
+                listen-on-v6 port 53 { ::1; };
+                directory       "/var/named";
+                dump-file       "/var/named/data/cache_dump.db";
+                statistics-file "/var/named/data/named_stats.txt";
+                memstatistics-file "/var/named/data/named_mem_stats.txt";
+                allow-query     { "{{ d1[q1] }}"; };
+                recursion yes;
+
+                "{{ a2[a] }}"
+                "{{ a2[b2] }}"
+
+
+
+                dnssec-enable yes;
+                dnssec-validation yes;
+
+
+                bindkeys-file "/etc/named.iscdlv.key";
+
+                managed-keys-directory "/var/named/dynamic";
+        };
+
+        logging {
+                channel default_debug {
+                        file "data/named.run";
+                        severity dynamic;
+                };
+        };
+
+        zone "." IN {
+                type hint;
+                file "named.ca";
+        };
+
+        zone "vm8.com" IN {
+                type master;
+                file "/var/named/{{ z1 }}";
+                allow-transfer { none; };
+        };
+
+        zone "1.168.192.in-addr.arpa" IN {
+        type master;
+        file "/var/named/{{ z2 }}";
+        allow-transfer { none; } ;
+        };
+
+        include "/etc/named.rfc1912.zones";
+        include "/etc/named.root.key";
+#task 6
+   - name: edit vm8.fwd
+     blockinfile:
+       dest: /var/named/{{ z1 }}
+       create: yes
+       marker: ""
+       block: |
+         $TTL 1D
+         $ORIGIN vm8.com.
+         @       IN SOA  "{{ h1 }}". admin.vm8.com. (
+
+                                         20191027001     ; serial
+                                         1H              ; refresh
+                                         10D             ; retry
+                                         24H             ; expire
+                                         3H )            ; minimum
+
+                                         NS              "{{ h1 }}".
+                                         MX      10      "{{ h1 }}".
+
+         "{{ ah }}"    A       192.168.1.112
+
+         www     CNAME   "{{ h1 }}".
+#task 7
+   - name: edit vm8.rev
+     blockinfile:
+       dest: /var/named/{{ z2 }}
+       create: yes
+       marker: ""
+       block: |
+         $TTL 1D
+         $ORIGIN 1.168.192.in-addr.arpa.
+         @       IN SOA   "{{ h1 }}". admin.vm8.com. (
+                                         20191015001     ; serial
+                                         1H              ; refresh
+                                         10D             ; retry
+                                         24H             ; expire
+                                         3H )            ; minimum
+
+                                         NS              "{{ h1 }}".
+                          A	192.168.1.112
+
+         112      PTR     "{{ h1 }}".
+#task 8
+   - name: stop the iptables
+     service:
+       name: iptables
+       state: stopped
+       enabled: no
+#task 9
+   - name: suspend selinux
+     shell:
+        setenforce 0
+#task 10
+   - name: Start service named, if not running
+     service:
+       name: named
+       state: restarted
+       enabled: yes
+#task 11
+   - name: place ip address in eth0 file
+     lineinfile:
+       path: /etc/sysconfig/network-scripts/ifcfg-eth0
+       regexp: '^DNS1='
+       line: 'DNS1=192.168.1.112'
+#task 12
+   - name: restart network service
+     service:
+       name: network
+       state: restarted
+       enabled: yes

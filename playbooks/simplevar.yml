@@ -1,0 +1,19 @@
+---
+- name: Install and start the Apache HTTPD
+  hosts: try2
+  vars:
+    msad:
+      httpd:
+      vsftpd:
+  tasks:
+  yum:
+        name: "{{ msad[2] }}"
+        state: latest
+#task 3
+    - name: Start service httpd, if not running
+      service:
+         name: {{ msad[1]  }}
+         state: started
+         enabled: yes
+
+

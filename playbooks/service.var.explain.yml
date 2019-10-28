@@ -1,0 +1,31 @@
+---
+- name: installing many services and stopping specific ones using with_item 
+  hosts: try2
+  vars:
+    it:
+      - httpd #this is 0 so it will be "{{ it[0] }}"
+      - vsftpd #this is 1 so it will be "{{ it[1] }}"
+
+      - nfs* #this is 2 so it will be "{{ it[2] }}"
+
+      - rpcbind #this is 3 so it will be "{{ it[3] }}"
+
+      - tree #this is 4 so it will be "{{ it[4] }}"
+
+      - samba #this is 5 so it will be "{{ it[5] }}"
+      
+  tasks:
+#    - name: install
+#      yum: 
+#        name: "{{ it }}"
+#        state: present
+    - name: stop specific services
+      service:
+        name: "{{item}}"
+        state: stopped
+      with_items:
+        - "{{ it.0 }}"
+        - "{{ it.1 }}"
+        - "{{ it.3 }}"
+
+        

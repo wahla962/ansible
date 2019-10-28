@@ -1,0 +1,28 @@
+---
+- name: Install and start the Apache HTTPD
+  hosts: try2
+  vars:
+    msad:
+      1: httpd
+      2: vsftpd
+      3: tree
+  tasks:
+   - name: httpd package is present 
+     yum:
+        name: "{{ msad[3] }}"
+        state: present
+#task 3
+   - name: Start service httpd, if not running
+     service:
+        name: "{{ msad[2]  }}"
+        state: started
+        enabled: no
+#tasks 5
+   - name: config named.conf
+     blockinfile:
+       dest: /root/{{ msad[2] }}.txt
+       create: yes
+       block: |
+        options 
+
+

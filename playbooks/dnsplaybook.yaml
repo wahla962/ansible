@@ -1,0 +1,152 @@
+---
+- name: Install and start a dns server
+  hosts: test
+  tasks:
+   - name: named package is present 
+     yum:
+        name: 
+        - bind
+        - bind-utils
+        state: present
+#tasks 2
+   - name: reset hostname file
+     shell:
+       echo "#">/etc/sysconfig/network
+#tasks 3
+   - name: changing client name to match ansible1.vm8.com
+     blockinfile:
+       dest: /etc/sysconfig/network
+       block: |
+         NETWORKING=yes
+         HOSTNAME=vmansible.vm6.com
+       backup: yes
+#tasks 4
+   - name: reset named.conf file
+     shell:
+       echo "">/etc/named.conf
+#tasks 5
+   - name: config named.conf
+     blockinfile:
+       dest: /etc/named.conf
+       block: |
+        options {
+                listen-on port 53 { any; };
+                listen-on-v6 port 53 { ::1; };
+                directory       "/var/named";
+                dump-file       "/var/named/data/cache_dump.db";
+                statistics-file "/var/named/data/named_stats.txt";
+                memstatistics-file "/var/named/data/named_mem_stats.txt";
+                allow-query     { any; };
+                recursion yes;
+
+                forwarders { 8.8.8.8; };
+                forward first;
+
+
+
+                #dnssec-enable yes;
+                #dnssec-validation yes;
+
+
+                #bindkeys-file "/etc/named.iscdlv.key";
+
+                #managed-keys-directory "/var/named/dynamic";
+        };
+
+        logging {
+                channel default_debug {
+                        file "data/named.run";
+                        severity dynamic;
+                };
+        };
+
+        zone "." IN {
+                type hint;
+                file "named.ca";
+        };
+
+        zone "vm8.com" IN {
+                type master;
+                file "/var/named/vm8.com.fwd";
+                allow-transfer { none; };
+        };
+
+        zone "1.168.192.in-addr.arpa" IN {
+        type master;
+        file "/var/named/vm8.com.rev";
+        allow-transfer { none; } ;
+        };
+
+        include "/etc/named.rfc1912.zones";
+        #include "/etc/named.root.key";
+#task 6
+   - name: edit vm8.fwd
+     blockinfile:
+       dest: /var/named/vm8.com.fwd
+       create: yes
+       marker: ""
+       block: |
+         $TTL 1D
+         $ORIGIN vm8.com.
+         @       IN SOA   anisble1.vm8.com. admin.vm8.com. (
+
+                                         20191027001     ; serial
+                                         1H              ; refresh
+                                         10D             ; retry
+                                         24H             ; expire
+                                         3H )            ; minimum
+
+                                         NS              ansible1.vm8.com.
+                                         MX      10      ansible1.vm8.com.
+
+         ansible1    A       192.168.1.111
+
+         www     CNAME   ansible1.vm8.com.
+#task 7
+   - name: edit vm8.rev
+     blockinfile:
+       dest: /var/named/vm8.com.rev
+       create: yes
+       marker: ""
+       block: |
+         $TTL 1D
+         $ORIGIN 1.168.192.in-addr.arpa.
+         @       IN SOA   ansible1.vm8.com. admin.vm8.com. (
+                                         20191015001     ; serial
+                                         1H              ; refresh
+                                         10D             ; retry
+                                         24H             ; expire
+                                         3H )            ; minimum
+
+                                         NS              ansible1.vm8.com.
+                          A	192.168.1.111
+
+         111      PTR     ansible1.vm8.com.
+#task 8
+   - name: stop the iptables
+     service:
+       name: iptables
+       state: stopped
+       enabled: no
+#task 9
+   - name: suspend selinux
+     shell:
+        setenforce 0
+#task 10
+   - name: Start service named, if not running
+     service:
+       name: named
+       state: restarted
+       enabled: yes
+#task 11
+   - name: place ip address in eth0 file
+     lineinfile:
+       path: /etc/sysconfig/network-scripts/ifcfg-eth0
+       regexp: '^DNS1=8.8.8.8'
+       line: 'DNS1=192.168.1.112'
+#task 12
+   - name: restart network service
+     service:
+       name: network
+       state: restarted
+       enabled: yes

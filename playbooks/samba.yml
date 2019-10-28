@@ -1,0 +1,51 @@
+---
+- name: samba setup unlocked version. (no passwd) 
+  hosts: localhost
+  vars:
+    it: samba 
+    test: /samba
+    sv:
+      - smb
+      - nmb  
+  tasks:
+  - name: install
+    yum: 
+      name: "{{it}}"
+      state: present
+  - name: make a test dir
+    file:
+      path: "{{test}}"
+      state: directory
+      mode: 0777
+      owner: root
+      group: root
+  - name: configure samba conf
+    blockinfile:
+      dest: /etc/samba/smb.conf
+      backup: yes
+      block: |
+        [linoop]
+                comment = Linux samba share via ansible
+                path = {{test}}
+                browesable = yes
+                writeable = yes
+                guest ok = yes
+  - name: configure samba conf
+    lineinfile:
+      path: /etc/samba/smb.conf
+      regexp: 'workgroup =*'
+      line: '        workgroup = WORKGROUP'
+  - name: stop iptables
+    service:
+      name: iptables
+      state: stopped
+  - name: stop selinux
+    selinux:
+      policy: targeted
+      state: permissive
+  - name: restart samba services
+    service:
+      name: "{{item}}"
+      state: restarted
+    with_items: 
+      - "{{sv}}"
